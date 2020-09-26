@@ -1,1 +1,6 @@
+secrets/secrets.go
+secrets/
 secrets.go
+*
+!/**/
+!*.*
