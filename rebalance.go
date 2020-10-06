@@ -7,24 +7,24 @@ import (
 	"io/ioutil"
 	"log"
 	"fmt"
+	"flag"
 
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
-	// "github.com/alpacahq/alpaca-trade-api-go/common"
-	// "github.com/shopspring/decimal"
 )
 
 func getPorfolioAllocation() map[string]float32 {
 	// Maps from ticker -> percent
 	allocation := map[string]float32 {
 		// Hedges
-		"IAU": 0.2,
-		"VTI": 0.2,
+		// "IAU": 0.2,
+		// "VTI": 0.2,
 
-		// Stocks
-		"AMZN": 0.2,
-		"MSFT": 0.2,
-		"ADBE": 0.1,
-		"NVDA": 0.1,
+		// // Stocks
+		// "AMZN": 0.2,
+		// "MSFT": 0.2,
+		// "ADBE": 0.1,
+		"NVDA": 0.50,
+		"TSLA": 0.50,
 	};
 
 	return allocation;
@@ -90,7 +90,10 @@ func genAccountPositions(
 	return positions, "";
 }
 
-func rebalance(dryRun bool) (int, string) {
+func main() {
+	dryRunPtr := flag.Bool("dryRun", false, "specifies whether or not this run is a dry run");
+	dryRun := *dryRunPtr;
+
 	desiredAllocation := getPorfolioAllocation();
 
 	var API_KEY string;
@@ -110,29 +113,83 @@ func rebalance(dryRun bool) (int, string) {
 	// Get account equity
 	account, err := genAccountInfo(ENDPOINT, API_KEY, API_SECRET);
 	if err != "" {
-		return 1, err;
+		fmt.Println(err);
+		return;
 	}
 
-	accountEquity := account.Equity;
-
-	fmt.Println("Account equity", accountEquity);
+	accountEquity, _ := account.Equity.Float64();
 
 	// Iterate through portfolio to see if desired vs. actual allocation
 	// deviates by 5% or more
-	// actualAllocation := make(map[string]float32);
+	//actualAllocation := make(map[string]float32);
 
 	positions, err := genAccountPositions(ENDPOINT, API_KEY, API_SECRET, desiredAllocation);
 	if err != "" {
-		return 1, err;
+		fmt.Println(err);
+		return;
 	}
-	fmt.Println(positions);
-	return 0, "";
 
-	// for ticker, allocationPercentage := range desiredAllocation {
+	for _, position := range positions {
+		ticker := position.Symbol;
+		desiredAllocationForTicker, ok := desiredAllocation[ticker];
+		if !ok {
+			err = "Warning: " + ticker + " exists in portfolio but not in desired allocation";
+			fmt.Println(err);
+			return;
+		} else {
+			valueRangeForTickerLowerBound := float64((desiredAllocationForTicker - 0.05)) *
+				accountEquity;
+			
+			valueRangeForTickerUpperBound := float64((desiredAllocationForTicker + 0.05)) *
+				accountEquity;
+			
+			actualEquityForTicker, _ := position.MarketValue.Float64()
 
-	// }
+			if valueRangeForTickerLowerBound <= actualEquityForTicker ||
+				actualEquityForTicker <= valueRangeForTickerUpperBound {
+				fmt.Println("Rebalancing portfolio.");
+
+				success, err := rebalancePortfolio(
+					ENDPOINT,
+					API_KEY,
+					API_SECRET,
+					desiredAllocation,
+					positions,
+					account,
+					dryRun,
+				);
+
+				if success {
+					fmt.Println("Successfully rebalanced portfolio");
+				} else {
+					fmt.Println("Failed to rebalance portfolio: " + err);
+				}
+				return;
+			}
+		}
+	}
+
+	fmt.Println("Did not rebalance portfolio--no allocations deviated by more than 5%.");
+	return;
 }
 
-func main() {
-	rebalance(true);
+func rebalancePortfolio(
+	endpoint string,
+	api_key string,
+	api_secret string,
+	desiredAllocation map[string]float32,
+	positions []*alpaca.Position,
+	account *alpaca.Account,
+	dryRun bool,
+) (bool, string) {
+	client := &http.Client {};
+	req, _ := http.NewRequest("POST", endpoint + "/orders", nil);
+	req.Header.Add("APCA-API-KEY-ID", api_key);
+	req.Header.Add("APCA-API-SECRET-KEY", api_secret);
+	resp, err := client.Do(req);
+
+	if err != nil {
+		log.Fatal(err);
+		return false, fmt.Sprintf("Error: %s", err.Error());
+	}
 }
