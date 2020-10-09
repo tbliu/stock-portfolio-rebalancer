@@ -8,6 +8,7 @@ import (
 	"log"
 	"fmt"
 	"flag"
+	"strconv"
 
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 )
@@ -77,7 +78,7 @@ func genAccountPositions(
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		log.Fatal("Error: Respones code was %d", resp.StatusCode);
+		log.Fatal("Error: Response code was %d", resp.StatusCode);
 		return nil, fmt.Sprintf("Error: Status code was %d", resp.StatusCode);
 	}
 
@@ -88,6 +89,70 @@ func genAccountPositions(
 	json.Unmarshal(body, &positions);
 
 	return positions, "";
+}
+
+func rebalancePortfolio(
+	endpoint string,
+	api_key string,
+	api_secret string,
+	desiredAllocation map[string]float32,
+	allocationTooHigh map[string]float32,
+	allocationTooLow map[string]float32,
+	positions []*alpaca.Position,
+	accountEquity float64,
+) (bool, string) {
+	// Sell off the positions that have gained in percentage
+	for _, position := range positions {
+
+	}
+
+	// Sell off the positions that have decreased in percentage
+
+	return true, "";
+}
+
+func submitOrder(
+	endpoint string,
+	api_key string,
+	api_secret string,
+	desiredAllocation float32,
+	orderType string,
+	position *alpaca.Position,
+) (bool, string) {
+	ticker := position.Symbol;
+	currentQuantity := strconv.Atoi(position.Qty);
+	desiredQuantity := int(accountEquity * desiredAllocation[ticker]);
+
+	numToSell := currentQuantity - desiredQuantity;
+	requestBody, err := json.Marshal(map[string]string {
+		"symbol": ticker,
+			"qty": strconv.Itoa(numToSell),
+			"side": "sell",
+			"type": "market",
+			"time_in_force": "day",
+		});
+
+	if err != nil {
+		log.Fatal(err);
+		return nil, fmt.Sprintf("Error: %s", err.Error());
+	}
+
+	req, _ := http.NewRequest("POST", endpoint + "/orders", requestBody);
+	req.Header.Add("APCA-API-KEY-ID", api_key);
+	req.Header.Add("APCA-API-SECRET-KEY", api_secret);
+	resp, err := client.Do(req);
+
+	if err != nil {
+		log.Fatal(err);
+		return nil, fmt.Sprintf("Error: %s", err.Error());
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		log.Fatal("Error: Response code was %d", resp.StatusCode);
+		return nil, fmt.Sprintf("Error: Status code was %d", resp.StatusCode);
+	}
+
+	defer resp.Body.Close();
 }
 
 func main() {
@@ -119,9 +184,9 @@ func main() {
 
 	accountEquity, _ := account.Equity.Float64();
 
-	// Iterate through portfolio to see if desired vs. actual allocation
-	// deviates by 5% or more
-	//actualAllocation := make(map[string]float32);
+	// Maps ticker to actual allocation
+	allocationTooHigh := make(map[string]float32);
+	allocationTooLow := make(map[string]float32);
 
 	positions, err := genAccountPositions(ENDPOINT, API_KEY, API_SECRET, desiredAllocation);
 	if err != "" {
@@ -129,11 +194,15 @@ func main() {
 		return;
 	}
 
+	shouldRebalance := false;
+
+	// Iterate through portfolio to see if desired vs. actual allocation
+	// deviates by 5% or more
 	for _, position := range positions {
 		ticker := position.Symbol;
 		desiredAllocationForTicker, ok := desiredAllocation[ticker];
 		if !ok {
-			err = "Warning: " + ticker + " exists in portfolio but not in desired allocation";
+			err = "Error: " + ticker + " exists in portfolio but not in desired allocation";
 			fmt.Println(err);
 			return;
 		} else {
@@ -144,52 +213,43 @@ func main() {
 				accountEquity;
 			
 			actualEquityForTicker, _ := position.MarketValue.Float64()
+			desiredEquityForTicker, _ := desiredAllocationForTicker * accountEquity;
 
-			if valueRangeForTickerLowerBound <= actualEquityForTicker ||
-				actualEquityForTicker <= valueRangeForTickerUpperBound {
-				fmt.Println("Rebalancing portfolio.");
+			if actualEquityForTicker <= valueRangeForTickerLowerBound ||
+				actualEquityForTicker >= valueRangeForTickerUpperBound {
+				shouldRebalance = true;
+			}
 
-				success, err := rebalancePortfolio(
-					ENDPOINT,
-					API_KEY,
-					API_SECRET,
-					desiredAllocation,
-					positions,
-					account,
-					dryRun,
-				);
-
-				if success {
-					fmt.Println("Successfully rebalanced portfolio");
-				} else {
-					fmt.Println("Failed to rebalance portfolio: " + err);
-				}
-				return;
+			if actualEquityForTicker >= desiredEquityForTicker {
+				allocationTooHigh[ticker] = actualEquityForTicker;
+			} else {
+				allocationTooLow[ticker] = actualEquityForTicker;
 			}
 		}
 	}
 
-	fmt.Println("Did not rebalance portfolio--no allocations deviated by more than 5%.");
-	return;
-}
+	if shouldRebalance {
+		fmt.Println("Rebalancing portfolio.");
 
-func rebalancePortfolio(
-	endpoint string,
-	api_key string,
-	api_secret string,
-	desiredAllocation map[string]float32,
-	positions []*alpaca.Position,
-	account *alpaca.Account,
-	dryRun bool,
-) (bool, string) {
-	client := &http.Client {};
-	req, _ := http.NewRequest("POST", endpoint + "/orders", nil);
-	req.Header.Add("APCA-API-KEY-ID", api_key);
-	req.Header.Add("APCA-API-SECRET-KEY", api_secret);
-	resp, err := client.Do(req);
+		success, err := rebalancePortfolio(
+			ENDPOINT,
+			API_KEY,
+			API_SECRET,
+			desiredAllocation,
+			allocationTooHigh,
+			allocationTooLow,
+			positions,
+			accountEquity,
+		);
 
-	if err != nil {
-		log.Fatal(err);
-		return false, fmt.Sprintf("Error: %s", err.Error());
+		if success {
+			fmt.Println("Successfully rebalanced portfolio");
+		} else {
+			fmt.Println("Failed to rebalance portfolio: " + err);
+		}
+		return;
+	} else {
+		fmt.Println("Did not rebalance portfolio--no allocations deviated by more than 5%.");
+		return;
 	}
 }
