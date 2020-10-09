@@ -49,7 +49,7 @@ func genAccountInfo(
 	}
 	
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		log.Fatal("Error: Response code was %d", resp.StatusCode);
+		log.Fatal(fmt.Sprintf("Error: Response code was %d at genAccountInfo"), resp.StatusCode);
 		return nil, fmt.Sprintf("Error: Status code was %d", resp.StatusCode);
 	}
 	
@@ -79,7 +79,7 @@ func genAccountPositions(
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		log.Fatal("Error: Response code was %d", resp.StatusCode);
+		log.Fatal(fmt.Sprintf("Error: Response code was %d at genAccountpositions"), resp.StatusCode);
 		return nil, fmt.Sprintf("Error: Status code was %d", resp.StatusCode);
 	}
 
@@ -157,14 +157,24 @@ func submitOrder(
 	ticker string,
 	accountEquity float64,
 ) (bool, string) {
-	
+	currentPriceOfStock, _ := position.CurrentPrice.Float64();
 	currentQuantity, _ := position.Qty.Float64();
-	desiredQuantity := int(accountEquity * float64(desiredAllocationForTicker));
+	desiredQuantity := int(accountEquity * float64(desiredAllocationForTicker) / currentPriceOfStock);
 
-	numToSell := int(currentQuantity) - desiredQuantity;
+	var numToBuyOrSell int;
+	if orderType == "buy" {
+		numToBuyOrSell = desiredQuantity - int(currentQuantity);
+	} else if orderType == "sell" {
+		numToBuyOrSell = int(currentQuantity) - desiredQuantity;
+	} else {
+		log.Fatal(fmt.Sprintf("Error: invalid transaction given in submitOrder: %s", orderType));
+		return false, "Error: invalid transaction given in submitOrder: %s";
+	}
+
+	fmt.Println(currentQuantity, desiredQuantity, numToBuyOrSell, orderType, desiredAllocationForTicker);
 	requestBody, err := json.Marshal(map[string]string {
 		"symbol": ticker,
-		"qty": strconv.Itoa(numToSell),
+		"qty": strconv.Itoa(numToBuyOrSell),
 		"side": orderType,
 		"type": "market",
 		"time_in_force": "day",
@@ -187,7 +197,7 @@ func submitOrder(
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		log.Fatal("Error: Response code was %d", resp.StatusCode);
+		log.Fatal(fmt.Sprintf("Error: Response code was %d at submitOrder"), resp.StatusCode);
 		return false, fmt.Sprintf("Error: Status code was %d", resp.StatusCode);
 	}
 
@@ -196,8 +206,10 @@ func submitOrder(
 }
 
 func main() {
-	dryRunPtr := flag.Bool("dryRun", false, "specifies whether or not this run is a dry run");
+	dryRunPtr := flag.Bool("test", false, "specifies whether or not this run is a dry run");
+	flag.Parse();
 	dryRun := *dryRunPtr;
+	fmt.Println(dryRun);
 
 	desiredAllocation := getPorfolioAllocation();
 
