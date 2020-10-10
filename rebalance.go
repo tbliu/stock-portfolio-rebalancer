@@ -24,7 +24,8 @@ func getPorfolioAllocation() map[string]float32 {
 		"MSFT": 0.11,
 		"VTI": 0.10,
 		"ADBE": 0.14,
-		"NVDA": 0.2,
+		//"NVDA": 0.2,
+		"TSLA": 0.1,
 
 		// 10% bonds
 		"TLT": 0.10,
@@ -119,6 +120,8 @@ func rebalancePortfolio(
                 position,
                 ticker,
                 accountEquity,
+				0, // initial adjustment is 0
+				5, // five retries
             )
 
             if !didSucceed {
@@ -140,6 +143,8 @@ func rebalancePortfolio(
                 position,
                 ticker,
                 accountEquity,
+				0, // initial adjustment is 0
+				5, // five retries
             )
 
             if !didSucceed {
@@ -160,6 +165,8 @@ func submitOrder(
     position *alpaca.Position,
     ticker string,
     accountEquity float64,
+	adjustment int,
+	numRetries int,
 ) (bool, string) {
     currentPriceOfStock, _ := position.CurrentPrice.Float64()
     currentQuantity, _ := position.Qty.Float64()
@@ -175,10 +182,9 @@ func submitOrder(
         return false, "Error: invalid transaction given in submitOrder: %s"
     }
 
-    fmt.Println(currentQuantity, desiredQuantity, numToBuyOrSell, orderType, desiredAllocationForTicker)
     requestBody, err := json.Marshal(map[string]string{
         "symbol":        ticker,
-        "qty":           strconv.Itoa(numToBuyOrSell),
+        "qty":           strconv.Itoa(numToBuyOrSell + adjustment),
         "side":          orderType,
         "type":          "market",
         "time_in_force": "day",
@@ -194,18 +200,37 @@ func submitOrder(
     req.Header.Add("APCA-API-KEY-ID", apiKey)
     req.Header.Add("APCA-API-SECRET-KEY", apiSecret)
     resp, err := client.Do(req)
+	defer resp.Body.Close()
 
     if err != nil {
         log.Fatal(err)
         return false, fmt.Sprintf("Error: %s", err.Error())
     }
 
-    if resp.StatusCode < 200 || resp.StatusCode > 299 {
-        log.Fatal(fmt.Sprintf("Error: Response code was %d at submitOrder"), resp.StatusCode)
+	if resp.StatusCode == 403 {
+		// Buying power is not sufficient, so try again with fewer shares
+		if numRetries == 0 {
+			log.Fatal(fmt.Sprintf("Error: Response code was %d at submitOrder even after retries", resp.StatusCode))
+			return false, fmt.Sprintf("Error: Response code was %d at submitOrder even after retries")
+		}
+
+		return submitOrder(
+			endpoint,
+			apiKey,
+			apiSecret,
+			desiredAllocationForTicker,
+			orderType,
+			position,
+			ticker,
+			accountEquity,
+			adjustment - 1,
+			numRetries - 1,
+		)
+	} else if resp.StatusCode < 200 || resp.StatusCode > 299 {
+        log.Fatal(fmt.Sprintf("Error: Response code was %d at submitOrder", resp.StatusCode))
         return false, fmt.Sprintf("Error: Status code was %d", resp.StatusCode)
     }
 
-    defer resp.Body.Close()
     return true, ""
 }
 
@@ -228,19 +253,6 @@ func sendEmailOnCompletion(msg string) {
 
     fmt.Println("Email sent.")
     return
-    // auth := smtp.PlainAuth("", secrets.EMAIL_ADDR, secrets.EMAIL_PASSWORD, secrets.EMAIL_HOSTNAME);
-    // recipients := []string{secrets.EMAIL_ADDR};
-    // from := secrets.EMAIL_ADDR;
-    // body := []byte(msg);
-
-    // err := smtp.SendMail(secrets.EMAIL_HOSTNAME + secrets.EMAIL_PORT, auth, from, recipients, body);
-
-    // if err != nil {
-    //  log.Fatal(err);
-    // }
-
-    // fmt.Println("Email sent.");
-    // return;
 }
 
 func main() {
