@@ -36,13 +36,13 @@ func getPorfolioAllocation() map[string]float32 {
 
 func genAccountInfo(
     endpoint string,
-    api_key string,
-    api_secret string,
+    apiKey string,
+    apiSecret string,
 ) (*alpaca.Account, string) {
     client := &http.Client{}
     req, _ := http.NewRequest("GET", endpoint+"/account", nil)
-    req.Header.Add("APCA-API-KEY-ID", api_key)
-    req.Header.Add("APCA-API-SECRET-KEY", api_secret)
+    req.Header.Add("APCA-API-KEY-ID", apiKey)
+    req.Header.Add("APCA-API-SECRET-KEY", apiSecret)
     resp, err := client.Do(req)
 
     if err != nil {
@@ -65,14 +65,14 @@ func genAccountInfo(
 
 func genAccountPositions(
     endpoint string,
-    api_key string,
-    api_secret string,
+    apiKey string,
+    apiSecret string,
     desiredAllocation map[string]float32,
 ) ([]*alpaca.Position, string) {
     client := &http.Client{}
     req, _ := http.NewRequest("GET", endpoint+"/positions", nil)
-    req.Header.Add("APCA-API-KEY-ID", api_key)
-    req.Header.Add("APCA-API-SECRET-KEY", api_secret)
+    req.Header.Add("APCA-API-KEY-ID", apiKey)
+    req.Header.Add("APCA-API-SECRET-KEY", apiSecret)
     resp, err := client.Do(req)
 
     if err != nil {
@@ -96,8 +96,8 @@ func genAccountPositions(
 
 func rebalancePortfolio(
     endpoint string,
-    api_key string,
-    api_secret string,
+    apiKey string,
+    apiSecret string,
     desiredAllocation map[string]float32,
     allocationTooHigh map[string]float64,
     allocationTooLow map[string]float64,
@@ -110,8 +110,8 @@ func rebalancePortfolio(
         if _, ok := allocationTooHigh[ticker]; ok {
             didSucceed, err := submitOrder(
                 endpoint,
-                api_key,
-                api_secret,
+                apiKey,
+                apiSecret,
                 desiredAllocation[ticker],
                 "sell",
                 position,
@@ -131,8 +131,8 @@ func rebalancePortfolio(
         if _, ok := allocationTooLow[ticker]; ok {
             didSucceed, err := submitOrder(
                 endpoint,
-                api_key,
-                api_secret,
+                apiKey,
+                apiSecret,
                 desiredAllocation[ticker],
                 "buy",
                 position,
@@ -151,8 +151,8 @@ func rebalancePortfolio(
 
 func submitOrder(
     endpoint string,
-    api_key string,
-    api_secret string,
+    apiKey string,
+    apiSecret string,
     desiredAllocationForTicker float32,
     orderType string,
     position *alpaca.Position,
@@ -189,8 +189,8 @@ func submitOrder(
 
     client := &http.Client{}
     req, _ := http.NewRequest("POST", endpoint+"/orders", bytes.NewReader(requestBody))
-    req.Header.Add("APCA-API-KEY-ID", api_key)
-    req.Header.Add("APCA-API-SECRET-KEY", api_secret)
+    req.Header.Add("APCA-API-KEY-ID", apiKey)
+    req.Header.Add("APCA-API-SECRET-KEY", apiSecret)
     resp, err := client.Do(req)
 
     if err != nil {
@@ -249,22 +249,22 @@ func main() {
 
     desiredAllocation := getPorfolioAllocation()
 
-    var API_KEY string
-    var API_SECRET string
-    var ENDPOINT string
+    var APIKey string
+    var APISecret string
+    var Endpoint string
 
     if dryRun {
-        API_KEY = secrets.PAPER_API_KEY_ID
-        API_SECRET = secrets.PAPER_SECRET_KEY
-        ENDPOINT = secrets.PAPER_ENDPOINT
+        APIKey = secrets.PAPER_API_KEY_ID
+        APISecret = secrets.PAPER_SECRET_KEY
+        Endpoint = secrets.PAPER_ENDPOINT
     } else {
-        API_KEY = secrets.API_KEY_ID
-        API_SECRET = secrets.SECRET_KEY
-        ENDPOINT = secrets.LIVE_ENDPOINT
+        APIKey = secrets.API_KEY_ID
+        APISecret = secrets.SECRET_KEY
+        Endpoint = secrets.LIVE_ENDPOINT
     }
 
     // Get account equity
-    account, err := genAccountInfo(ENDPOINT, API_KEY, API_SECRET)
+    account, err := genAccountInfo(Endpoint, APIKey, APISecret)
     if err != "" {
         fmt.Println(err)
         sendEmailOnCompletion(err)
@@ -277,7 +277,7 @@ func main() {
     allocationTooHigh := make(map[string]float64)
     allocationTooLow := make(map[string]float64)
 
-    positions, err := genAccountPositions(ENDPOINT, API_KEY, API_SECRET, desiredAllocation)
+    positions, err := genAccountPositions(Endpoint, APIKey, APISecret, desiredAllocation)
     if err != "" {
         fmt.Println(err)
         sendEmailOnCompletion(err)
@@ -295,36 +295,36 @@ func main() {
             err = "Error: " + ticker + " exists in portfolio but not in desired allocation"
             fmt.Println(err)
             return
-        } else {
-            valueRangeForTickerLowerBound := float64((desiredAllocationForTicker - 0.05)) *
-                accountEquity
-
-            valueRangeForTickerUpperBound := float64((desiredAllocationForTicker + 0.05)) *
-                accountEquity
-
-            actualEquityForTicker, _ := position.MarketValue.Float64()
-            desiredEquityForTicker := float64(desiredAllocationForTicker) * accountEquity
-
-            if actualEquityForTicker <= valueRangeForTickerLowerBound ||
-                actualEquityForTicker >= valueRangeForTickerUpperBound {
-                shouldRebalance = true
-            }
-
-            if actualEquityForTicker >= desiredEquityForTicker {
-                allocationTooHigh[ticker] = actualEquityForTicker
-            } else {
-                allocationTooLow[ticker] = actualEquityForTicker
-            }
         }
+
+        valueRangeForTickerLowerBound := float64((desiredAllocationForTicker - 0.05)) *
+            accountEquity
+
+        valueRangeForTickerUpperBound := float64((desiredAllocationForTicker + 0.05)) *
+            accountEquity
+
+        actualEquityForTicker, _ := position.MarketValue.Float64()
+        desiredEquityForTicker := float64(desiredAllocationForTicker) * accountEquity
+
+        if actualEquityForTicker <= valueRangeForTickerLowerBound ||
+            actualEquityForTicker >= valueRangeForTickerUpperBound {
+            shouldRebalance = true
+        }
+
+        if actualEquityForTicker >= desiredEquityForTicker {
+            allocationTooHigh[ticker] = actualEquityForTicker
+        } else {
+            allocationTooLow[ticker] = actualEquityForTicker
+        }     
     }
 
     if shouldRebalance {
         fmt.Println("Rebalancing portfolio.")
 
         success, err := rebalancePortfolio(
-            ENDPOINT,
-            API_KEY,
-            API_SECRET,
+            Endpoint,
+            APIKey,
+            APISecret,
             desiredAllocation,
             allocationTooHigh,
             allocationTooLow,
@@ -340,9 +340,8 @@ func main() {
             sendEmailOnCompletion("Failed to rebalance portfolio: " + err)
         }
         return
-    } else {
-        fmt.Println("Did not rebalance portfolio--no allocations deviated by more than 5%.")
-        sendEmailOnCompletion("Did not rebalance portfolio--no allocations deviated by more than 5%.")
-        return
     }
+    fmt.Println("Did not rebalance portfolio--no allocations deviated by more than 5%.")
+    sendEmailOnCompletion("Did not rebalance portfolio--no allocations deviated by more than 5%.")
+    return
 }
