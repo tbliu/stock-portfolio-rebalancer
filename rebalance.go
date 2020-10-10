@@ -19,16 +19,18 @@ import (
 func getPorfolioAllocation() map[string]float32 {
     // Maps from ticker -> percent
     allocation := map[string]float32{
-        // Hedges
-        // "IAU": 0.2,
-        // "VTI": 0.2,
+		// 80% stocks
+		"AMZN": 0.25,
+		"MSFT": 0.11,
+		"VTI": 0.10,
+		"ADBE": 0.14,
+		"NVDA": 0.2,
 
-        // // Stocks
-        // "AMZN": 0.2,
-        // "MSFT": 0.2,
-        // "ADBE": 0.1,
-        "NVDA": 0.50,
-        "TSLA": 0.50,
+		// 10% bonds
+		"TLT": 0.10,
+
+		// 10% gold
+		"IAU": 0.10,
     }
 
     return allocation
