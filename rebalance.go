@@ -24,8 +24,7 @@ func getPorfolioAllocation() map[string]float32 {
         "MSFT": 0.11,
         "VTI": 0.10,
         "ADBE": 0.14,
-        //"NVDA": 0.2,
-        "TSLA": 0.1,
+        "NVDA": 0.2,
 
         // 10% bonds
         "TLT": 0.10,
