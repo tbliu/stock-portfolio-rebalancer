@@ -10,6 +10,8 @@ import (
 	"flag"
 	"strconv"
 	"bytes"
+	"net/smtp"
+	"./login"
 
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 )
@@ -205,6 +207,40 @@ func submitOrder(
 	return true, "";
 }
 
+func sendEmailOnCompletion(msg string) {
+	auth := login.LoginAuth(secrets.EMAIL_ADDR, secrets.EMAIL_PASSWORD);
+	from := secrets.EMAIL_ADDR;
+	recipients := []string{secrets.EMAIL_ADDR};
+	body := []byte(
+		"From: " + from + "\n" +
+			"To: " + recipients[0] + "\n" +
+			"Subject: Stock rebalancer\n\n" +
+			msg,
+	);
+
+	err := smtp.SendMail(secrets.EMAIL_HOSTNAME + secrets.EMAIL_PORT, auth, from, recipients, body);
+
+	if err != nil {
+		log.Fatal(err);
+	}
+
+	fmt.Println("Email sent.");
+	return;
+	// auth := smtp.PlainAuth("", secrets.EMAIL_ADDR, secrets.EMAIL_PASSWORD, secrets.EMAIL_HOSTNAME);
+	// recipients := []string{secrets.EMAIL_ADDR};
+	// from := secrets.EMAIL_ADDR;
+	// body := []byte(msg);
+
+	// err := smtp.SendMail(secrets.EMAIL_HOSTNAME + secrets.EMAIL_PORT, auth, from, recipients, body);
+
+	// if err != nil {
+	// 	log.Fatal(err);
+	// }
+
+	// fmt.Println("Email sent.");
+	// return;
+}
+
 func main() {
 	dryRunPtr := flag.Bool("test", false, "specifies whether or not this run is a dry run");
 	flag.Parse();
@@ -231,6 +267,7 @@ func main() {
 	account, err := genAccountInfo(ENDPOINT, API_KEY, API_SECRET);
 	if err != "" {
 		fmt.Println(err);
+		sendEmailOnCompletion(err);
 		return;
 	}
 
@@ -243,6 +280,7 @@ func main() {
 	positions, err := genAccountPositions(ENDPOINT, API_KEY, API_SECRET, desiredAllocation);
 	if err != "" {
 		fmt.Println(err);
+		sendEmailOnCompletion(err);
 		return;
 	}
 
@@ -296,12 +334,15 @@ func main() {
 
 		if success {
 			fmt.Println("Successfully rebalanced portfolio");
+			sendEmailOnCompletion("Successfully rebalanced portfolio");
 		} else {
 			fmt.Println("Failed to rebalance portfolio: " + err);
+			sendEmailOnCompletion("Failed to rebalance portfolio: " + err);
 		}
 		return;
 	} else {
 		fmt.Println("Did not rebalance portfolio--no allocations deviated by more than 5%.");
+		sendEmailOnCompletion("Did not rebalance portfolio--no allocations deviated by more than 5%.");
 		return;
 	}
 }
