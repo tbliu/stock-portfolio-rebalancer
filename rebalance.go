@@ -19,19 +19,19 @@ import (
 func getPorfolioAllocation() map[string]float32 {
     // Maps from ticker -> percent
     allocation := map[string]float32{
-		// 80% stocks
-		"AMZN": 0.25,
-		"MSFT": 0.11,
-		"VTI": 0.10,
-		"ADBE": 0.14,
-		//"NVDA": 0.2,
-		"TSLA": 0.1,
+        // 80% stocks
+        "AMZN": 0.25,
+        "MSFT": 0.11,
+        "VTI": 0.10,
+        "ADBE": 0.14,
+        //"NVDA": 0.2,
+        "TSLA": 0.1,
 
-		// 10% bonds
-		"TLT": 0.10,
+        // 10% bonds
+        "TLT": 0.10,
 
-		// 10% gold
-		"IAU": 0.10,
+        // 10% gold
+        "IAU": 0.10,
     }
 
     return allocation
@@ -120,8 +120,8 @@ func rebalancePortfolio(
                 position,
                 ticker,
                 accountEquity,
-				0, // initial adjustment is 0
-				5, // five retries
+                0, // initial adjustment is 0
+                5, // five retries
             )
 
             if !didSucceed {
@@ -143,8 +143,8 @@ func rebalancePortfolio(
                 position,
                 ticker,
                 accountEquity,
-				0, // initial adjustment is 0
-				5, // five retries
+                0, // initial adjustment is 0
+                5, // five retries
             )
 
             if !didSucceed {
@@ -165,8 +165,8 @@ func submitOrder(
     position *alpaca.Position,
     ticker string,
     accountEquity float64,
-	adjustment int,
-	numRetries int,
+    adjustment int,
+    numRetries int,
 ) (bool, string) {
     currentPriceOfStock, _ := position.CurrentPrice.Float64()
     currentQuantity, _ := position.Qty.Float64()
@@ -200,33 +200,33 @@ func submitOrder(
     req.Header.Add("APCA-API-KEY-ID", apiKey)
     req.Header.Add("APCA-API-SECRET-KEY", apiSecret)
     resp, err := client.Do(req)
-	defer resp.Body.Close()
+    defer resp.Body.Close()
 
     if err != nil {
         log.Fatal(err)
         return false, fmt.Sprintf("Error: %s", err.Error())
     }
 
-	if resp.StatusCode == 403 {
-		// Buying power is not sufficient, so try again with fewer shares
-		if numRetries == 0 {
-			log.Fatal(fmt.Sprintf("Error: Response code was %d at submitOrder even after retries", resp.StatusCode))
-			return false, fmt.Sprintf("Error: Response code was %d at submitOrder even after retries")
-		}
+    if resp.StatusCode == 403 {
+        // Buying power is not sufficient, so try again with fewer shares
+        if numRetries == 0 {
+            log.Fatal(fmt.Sprintf("Error: Response code was %d at submitOrder even after retries", resp.StatusCode))
+            return false, fmt.Sprintf("Error: Response code was %d at submitOrder even after retries")
+        }
 
-		return submitOrder(
-			endpoint,
-			apiKey,
-			apiSecret,
-			desiredAllocationForTicker,
-			orderType,
-			position,
-			ticker,
-			accountEquity,
-			adjustment - 1,
-			numRetries - 1,
-		)
-	} else if resp.StatusCode < 200 || resp.StatusCode > 299 {
+        return submitOrder(
+            endpoint,
+            apiKey,
+            apiSecret,
+            desiredAllocationForTicker,
+            orderType,
+            position,
+            ticker,
+            accountEquity,
+            adjustment - 1,
+            numRetries - 1,
+        )
+    } else if resp.StatusCode < 200 || resp.StatusCode > 299 {
         log.Fatal(fmt.Sprintf("Error: Response code was %d at submitOrder", resp.StatusCode))
         return false, fmt.Sprintf("Error: Status code was %d", resp.StatusCode)
     }
