@@ -53,7 +53,7 @@ func genAccountInfo(
     }
 
     if resp.StatusCode < 200 || resp.StatusCode > 299 {
-        log.Fatal(fmt.Sprintf("Error: Response code was %d at genAccountInfo"), resp.StatusCode)
+        log.Fatal(fmt.Sprintf("Error: Response code was %d at genAccountInfo", resp.StatusCode))
         return nil, fmt.Sprintf("Error: Status code was %d", resp.StatusCode)
     }
 
@@ -307,6 +307,7 @@ func main() {
         if !ok {
             err = "Error: " + ticker + " exists in portfolio but not in desired allocation"
             fmt.Println(err)
+	    sendEmailOnCompletion(err)
             return
         }
 
@@ -328,7 +329,7 @@ func main() {
             allocationTooHigh[ticker] = actualEquityForTicker
         } else {
             allocationTooLow[ticker] = actualEquityForTicker
-        }     
+        }
     }
 
     if shouldRebalance {
