@@ -13,4 +13,3 @@ To set and adjust your portfolio, edit the `getPortfolioAllocation()` function o
 - your email port
 
 Once this is set up and running without errors on your local machine, you can set up a cron job to have this script run every weekday at a specific point in time (I set it so it runs just after market open).
-- 
